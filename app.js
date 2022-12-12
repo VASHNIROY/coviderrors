@@ -7,7 +7,7 @@ const app = express();
 app.use(express.json());
 
 const path = require("path");
-const dataPath = path.join(__dirname, "covid19India.db");
+const dataPath = path.join(__dirname, "covid19india.db");
 
 let database = null;
 
@@ -17,18 +17,18 @@ const initializeDBAndServer = async() => {
             filename: dataPath,
             driver: sqlite3.Database
         });
-        app.listen(3000), () => {
+        app.listen(3000, () => 
             console.log("Server running on http://localhost:3000");
-        }
+        );
     }catch(error){
-        console.log(`DB: ${error.message}`);
+        console.log(`DB Error: ${error.message}`);
         process.exit(1);
     }
-}
+};
 
 initializeDBAndServer();
 
-convertSnakeCaseToCamelCase = (dataObject) => {
+const convertSnakeCaseToCamelCase = (dataObject) => {
     return{
         stateId: dataObject.state_id,
         stateName: dataObject.state_name,
@@ -36,7 +36,7 @@ convertSnakeCaseToCamelCase = (dataObject) => {
     };
 };
 
-convertSnakeCaseToDistrict = (dataObject) => {
+const convertSnakeCaseToDistrict = (dataObject) => {
     return{
         districtId: dataObject.district_id,
         districtName: dataObject.district_name,
@@ -48,12 +48,12 @@ convertSnakeCaseToDistrict = (dataObject) => {
     }   
 } 
 
-getTotalCasesOutput = (dataObject) => {
+const getTotalCasesOutput = (dataObject) => {
     return{
-        totalCases: dataObject.cases,
-        totalCured: dataObject.cured,
-        totalActive: dataObject.active,
-        totalDeaths: dataObject.deaths
+        totalCases: dataObject."SUM(cases)",
+        totalCured: dataObject."SUM(cured)",
+        totalActive: dataObject."SUM(active)",
+        totalDeaths: dataObject."SUM(deaths)"
     }
 }
 
@@ -65,7 +65,7 @@ app.get("/states/", async(request,response) => {
              FROM state;`
     const statesDetails = await database.all(statesQuery);
     const camelCaseDetails = statesDetails.map((eachOne) => convertSnakeCaseToCamelCase(eachOne));  
-    response.send(camelCaseDetails);   
+    response.send(camelCaseDetails);
 });
 
 //get stateID
@@ -142,14 +142,29 @@ app.put("/districts/:districtId/", async(request,response) => {
 app.get("/states/:stateId/stats/", async(request,response) => {
     const {stateId} = request.params;
     const getTotalStatsQuery = 
-                `SELECT district.cases,district.cured,district.active,district.deaths
-                 FROM state INNER JOIN district
-                    ON state.state_id = district.state_id
-                 WHERE district.state_id = ${stateId};`;
+                `SELECT 
+                    SUM(cases),
+                    SUM(cured),
+                    SUM(active),
+                    SUM(deaths)
+                 FROM district
+                 WHERE 
+                    state_id = ${stateId};`;
     const getCasesDetails = await database.get(getTotalStatsQuery);
     response.send(getTotalCasesOutput(getCasesDetails));
 });
 
-//get state name
+// GET state Name
+
+app.get("/districts/:districtId/details/", async(request,response) => {
+    const {districtId} = request.params;
+    const stateNameQuery = 
+        `SELECT state.state_name
+         FROM state INNER JOIN district
+            ON state.state_id = district.state_id
+        WHERE district_id = ${districtId};`;
+    const getOutput = await database.get(stateNameQuery);
+    response.send(getOutput);
+})
 
 module.exports = app;
